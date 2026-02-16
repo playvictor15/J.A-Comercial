@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A Comércio | Painel e Loja</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --orange: #ee4d2d; --bg: #f5f5f5; --white: #fff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background: var(--bg); }
+
+        /* HEADER */
+        header { background: linear-gradient(-180deg, #f53d2d, #f63); color: white; padding: 15px; position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-weight: bold; font-size: 1.2rem; }
+        .nav-btns button { background: none; border: 1px solid white; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px; }
+
+        /* VITRINE */
+        .container { max-width: 1000px; margin: 20px auto; padding: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+        .card { background: white; border-radius: 2px; overflow: hidden; display: flex; flex-direction: column; border: 1px solid #ddd; }
+        .card img { width: 100%; height: 160px; object-fit: cover; }
+        .card-info { padding: 10px; flex-grow: 1; }
+        .price { color: var(--orange); font-weight: bold; font-size: 1.1rem; }
+        .btn-add { width: 100%; background: var(--orange); color: white; border: none; padding: 8px; cursor: pointer; margin-top: 5px; }
+
+        /* ADMIN PANEL */
+        #admin-panel { display: none; background: white; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; }
+        .btn-save { background: #28a745; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+
+        /* CARRINHO */
+        #cart-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; justify-content: center; align-items: center; }
+        .cart-box { background: white; padding: 20px; width: 90%; max-width: 400px; border-radius: 8px; }
+        .cart-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+
+        /* FLOATING CART ICON */
+        .cart-float { position: fixed; bottom: 20px; right: 20px; background: var(--orange); color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">J.A COMÉRCIO</div>
+    <div class="nav-btns">
+        <button onclick="showPage('loja')">Loja</button>
+        <button onclick="loginAdmin()">Adm</button>
+    </div>
+</header>
+
+<div class="container">
+    <div id="loja-page">
+        <h2 style="margin-bottom: 15px;">Destaques</h2>
+        <div class="grid" id="vitrine"></div>
+    </div>
+
+    <div id="admin-panel">
+        <h2>Painel do Administrador</h2>
+        <div class="form-group">
+            <input type="text" id="p-nome" placeholder="Nome do Produto">
+            <input type="text" id="p-preco" placeholder="Preço (Ex: 59.90)">
+            <input type="text" id="p-img" placeholder="Link da Imagem">
+            <textarea id="p-desc" placeholder="Breve descrição"></textarea>
+            <button class="btn-save" onclick="salvarProduto()">Adicionar Produto</button>
+        </div>
+        <hr>
+        <h3>Produtos Cadastrados</h3>
+        <div id="lista-admin" style="margin-top: 15px;"></div>
+    </div>
+</div>
+
+<div class="cart-float" onclick="abrirCarrinho()">
+    <i class="fas fa-shopping-cart"></i>
+    <span id="cart-count" style="position:absolute; top:5px; right:5px; font-size:12px; background:white; color:red; padding:2px 5px; border-radius:50%;">0</span>
+</div>
+
+<div id="cart-modal">
+    <div class="cart-box">
+        <h3>Seu Pedido</h3>
+        <div id="cart-items"></div>
+        <p style="margin-top:15px; font-weight:bold" id="cart-total"></p>
+        <button class="btn-add" style="background:#25d366" onclick="enviarPedido()">Finalizar no WhatsApp</button>
+        <button onclick="document.getElementById('cart-modal').style.display='none'" style="width:100%; margin-top:10px; border:none; background:#eee; padding:10px; cursor:pointer">Fechar</button>
+    </div>
+</div>
+
+<script>
+    let produtos = JSON.parse(localStorage.getItem('ja_produtos')) || [];
+    let carrinho = [];
+    const WHATSAPP_ADM = "5511999999999"; // ALTERE PARA SEU NÚMERO
+
+    function showPage(page) {
+        document.getElementById('loja-page').style.display = page === 'loja' ? 'block' : 'none';
+        document.getElementById('admin-panel').style.display = page === 'admin' ? 'block' : 'none';
+        if(page === 'loja') renderLoja();
+        if(page === 'admin') renderAdmin();
+    }
+
+    function loginAdmin() {
+        const pass = prompt("Senha do ADM:");
+        if(pass === "123") { // ALTERE SUA SENHA AQUI
+            showPage('admin');
+        } else {
+            alert("Senha incorreta!");
+        }
+    }
+
+    function salvarProduto() {
+        const nome = document.getElementById('p-nome').value;
+        const preco = parseFloat(document.getElementById('p-preco').value);
+        const img = document.getElementById('p-img').value;
+        const desc = document.getElementById('p-desc').value;
+
+        if(!nome || !preco) return alert("Preencha nome e preço!");
+
+        produtos.push({ id: Date.now(), nome, preco, img, desc });
+        localStorage.setItem('ja_produtos', JSON.stringify(produtos));
+        alert("Produto salvo!");
+        renderAdmin();
+        // Limpar campos
+        document.querySelectorAll('input, textarea').forEach(i => i.value = '');
+    }
+
+    function deletar(id) {
+        produtos = produtos.filter(p => p.id !== id);
+        localStorage.setItem('ja_produtos', JSON.stringify(produtos));
+        renderAdmin();
+    }
+
+    function renderAdmin() {
+        const lista = document.getElementById('lista-admin');
+        lista.innerHTML = produtos.map(p => `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; margin-bottom:5px;">
+                <span>${p.nome} - R$ ${p.preco}</span>
+                <button onclick="deletar(${p.id})" style="color:red; border:none; background:none; cursor:pointer">Excluir</button>
+            </div>
+        `).join('');
+    }
+
+    function renderLoja() {
+        const vitrine = document.getElementById('vitrine');
+        vitrine.innerHTML = produtos.map(p => `
+            <div class="card">
+                <img src="${p.img || 'https://via.placeholder.com/150'}" alt="${p.nome}">
+                <div class="card-info">
+                    <div class="card-title" style="font-size:0.8rem; height:32px; overflow:hidden">${p.nome}</div>
+                    <div class="price">R$ ${p.preco.toFixed(2)}</div>
+                    <button class="btn-add" onclick="addCarrinho(${p.id})">Comprar</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function addCarrinho(id) {
+        const p = produtos.find(prod => prod.id === id);
+        carrinho.push(p);
+        document.getElementById('cart-count').innerText = carrinho.length;
+    }
+
+    function abrirCarrinho() {
+        const modal = document.getElementById('cart-modal');
+        const itemsDiv = document.getElementById('cart-items');
+        let total = 0;
+        
+        itemsDiv.innerHTML = carrinho.map(i => {
+            total += i.preco;
+            return `<div class="cart-item"><span>${i.nome}</span><span>R$ ${i.preco.toFixed(2)}</span></div>`;
+        }).join('');
+        
+        document.getElementById('cart-total').innerText = "Total: R$ " + total.toFixed(2);
+        modal.style.display = 'flex';
+    }
+
+    function enviarPedido() {
+        if(carrinho.length === 0) return;
+        let msg = "*NOVO PEDIDO - J.A COMÉRCIO*\n\n";
+        carrinho.forEach(i => msg += `• ${i.nome} (R$ ${i.preco})\n`);
+        msg += `\n*TOTAL: R$ ${carrinho.reduce((a,b) => a + b.preco, 0).toFixed(2)}*`;
+        
+        window.open(`https://wa.me/${WHATSAPP_ADM}?text=${encodeURIComponent(msg)}`);
+    }
+
+    // Inicialização
+    renderLoja();
+</script>
+
+</body>
+</html>
